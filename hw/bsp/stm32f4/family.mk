@@ -18,7 +18,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-align
+#CFLAGS += -Wno-error=cast-align
 
 SRC_C += \
 	src/portable/st/synopsys/dcd_synopsys.c \

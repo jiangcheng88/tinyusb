@@ -45,7 +45,6 @@ int main(void)
   {
     tud_task(); // tinyusb device task
     cdc_task();
-    printf("hello\r\n");
   }
 
   return 0;

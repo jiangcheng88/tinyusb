@@ -1,0 +1,1 @@
+#define STM32F303xC     1

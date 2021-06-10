@@ -101,7 +101,7 @@ CFLAGS += \
   -Wsign-compare \
   -Wmissing-format-attribute \
   -Wunreachable-code \
-  -Wcast-align \
+  #-Wcast-align \
   -Wcast-function-type
 
 # Debugging/Optimization

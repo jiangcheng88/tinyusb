@@ -234,7 +234,7 @@ void dcd_init (uint8_t rhport)
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for(uint32_t i = 0; i<200; i++) // should be a few us
   {
-    asm("NOP");
+    asm("NOP"); 
   }
   USB->CNTR = 0; // Enable USB
   

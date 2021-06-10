@@ -61,6 +61,12 @@ void USBWakeUp_RMP_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+UART_HandleTypeDef UartHandle;
+
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOE
 #define LED_PIN               GPIO_PIN_9
@@ -70,6 +76,9 @@ void USBWakeUp_RMP_IRQHandler(void)
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+#define UART_PORT             GPIOC
+#define TX_PIN                GPIO_PIN_4
+#define RX_PIN                GPIO_PIN_5 
 
 /**
   * @brief  System Clock Configuration
@@ -120,6 +129,8 @@ static void SystemClock_Config(void)
   __HAL_RCC_PWR_CLK_ENABLE();
 }
 
+
+
 void board_init(void)
 {
   SystemClock_Config();
@@ -133,9 +144,33 @@ void board_init(void)
   __HAL_RCC_SYSCFG_CLK_ENABLE();
   __HAL_REMAPINTERRUPT_USB_ENABLE();
 
+ // UART
+  __HAL_RCC_GPIOC_CLK_ENABLE(); 
+  GPIO_InitTypeDef GPIO_InitStruct ; 
+  GPIO_InitStruct.Pin = (RX_PIN| TX_PIN) ; 
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL ; 
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART1 ;
+  HAL_GPIO_Init(UART_PORT , &GPIO_InitStruct);
+  __HAL_RCC_USART1_CLK_ENABLE();
+
+
+  UartHandle.Instance = USART1 ; 
+  UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
+  UartHandle.Init.WordLength = UART_WORDLENGTH_8B ;
+  UartHandle.Init.StopBits =  UART_STOPBITS_1 ; 
+  UartHandle.Init.Parity = UART_PARITY_NONE ; 
+  UartHandle.Init.HwFlowCtl = UART_HWCONTROL_NONE ; 
+  UartHandle.Init.Mode = UART_MODE_TX_RX ; 
+  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16 ;
+  HAL_UART_Init(&UartHandle);
+
+
+
   // LED
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  //GPIO_InitTypeDef  GPIO_InitStruct ;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -185,7 +220,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
   return 0;
 }
 

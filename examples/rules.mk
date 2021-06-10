@@ -164,9 +164,22 @@ flash-jlink: $(BUILD)/$(PROJECT).hex
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
+
+OPENOCD := openocd -f interface/stlink-v1.cfg \
+	-f  target/stm32f3x.cfg 
 # flash STM32 MCU using stlink with STM32 Cube Programmer CLI
+# OPENOCD := openocd -f interface/cmsis-dap.cfg \
+# 	-f  transport select swd \
+# 	-f  target/stm32f3x.cfg
+
 flash-stlink: $(BUILD)/$(PROJECT).elf
-	STM32_Programmer_CLI --connect port=swd --write $< --go
+#	STM32_Programmer_CLI --connect port=swd --write $< --go
+ 
+	$(OPENOCD) 	-c init \
+				-c 'reset halt' \
+				-c 'flash write_image erase /mnt/stm32/tinyusb/examples/device/cdc_dual_ports/_build/stm32f303disco/stm32f303disco-cdc_dual_ports.elf' \
+				-c 'reset run' \
+				-c exit 
 
 # flash with pyocd
 flash-pyocd: $(BUILD)/$(PROJECT).hex

@@ -77,6 +77,7 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 {
   (void) fhdl;
+ 
   return 0;
 }
 
@@ -96,3 +97,17 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 }
 
 #endif
+
+
+// int _write(int file, char *ptr, int len)
+// {
+// 	int DataIdx;
+
+// 	for (DataIdx = 0; DataIdx < len; DataIdx++)
+// 	{
+// 	   ITM_SendChar( *ptr++ );
+// 	}
+
+// 	return len;
+// }
+
