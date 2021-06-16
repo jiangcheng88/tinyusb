@@ -172,15 +172,38 @@ OPENOCD := openocd -f interface/stlink-v1.cfg \
 # 	-f  transport select swd \
 # 	-f  target/stm32f3x.cfg
 
+# /mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f303disco/stm32f303disco-audio_test.elf
+# /mnt/stm32/tinyusb/examples/device/audio_4_channel_mic/_build/stm32f303disco/stm32f303disco-audio_4_channel_mic.elf
+
 flash-stlink: $(BUILD)/$(PROJECT).elf
 #	STM32_Programmer_CLI --connect port=swd --write $< --go
  
 	$(OPENOCD) 	-c init \
 				-c 'reset halt' \
-				-c 'flash write_image erase /mnt/stm32/tinyusb/examples/device/cdc_dual_ports/_build/stm32f303disco/stm32f303disco-cdc_dual_ports.elf' \
+				-c 'flash write_image erase /mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f303disco/stm32f303disco-audio_test.elf' \
 				-c 'reset run' \
 				-c exit 
 
+
+OPENOCD_F4 := openocd -f interface/stlink-v1.cfg \
+	-f  target/stm32f4x.cfg 
+flash-stlink-f4: $(BUILD)/$(PROJECT).elf
+#	STM32_Programmer_CLI --connect port=swd --write $< --go
+ 
+	$(OPENOCD_F4) 	-c init \
+				-c 'reset halt' \
+				-c 'flash write_image erase /mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f407disco/stm32f407disco-audio_test.elf' \
+				-c 'reset run' \
+				-c exit 
+
+flash-stlink-f4-serial: $(BUILD)/$(PROJECT).elf
+#	STM32_Programmer_CLI --connect port=swd --write $< --go
+ 
+	$(OPENOCD_F4) 	-c init \
+				-c 'reset halt' \
+				-c 'flash write_image erase /mnt/stm32/tinyusb/examples/device/cdc_dual_ports/_build/feather_stm32f405/feather_stm32f405-cdc_dual_ports.elf' \
+				-c 'reset run' \
+				-c exit 
 # flash with pyocd
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<

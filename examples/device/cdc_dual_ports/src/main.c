@@ -38,14 +38,14 @@ static void cdc_task(void);
 int main(void)
 {
   board_init();
-
+  TU_LOG2("USBD init");
   tusb_init();
 
   while (1)
   {
     tud_task(); // tinyusb device task
     cdc_task();
-    printf("hello\r\n");
+   // printf("hello\r\n");
   }
 
   return 0;

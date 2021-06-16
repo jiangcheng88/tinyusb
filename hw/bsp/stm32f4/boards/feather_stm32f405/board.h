@@ -32,8 +32,8 @@
 #endif
 
 // LED
-#define LED_PORT              GPIOC
-#define LED_PIN               GPIO_PIN_1
+#define LED_PORT              GPIOB
+#define LED_PIN               GPIO_PIN_2
 #define LED_STATE_ON          1
 
 // Button: Pin D5
@@ -42,11 +42,11 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_DEV              USART3
-#define UART_GPIO_PORT        GPIOB
-#define UART_GPIO_AF          GPIO_AF7_USART3
-#define UART_TX_PIN           GPIO_PIN_10
-#define UART_RX_PIN           GPIO_PIN_11
+#define UART_DEV              USART2
+#define UART_GPIO_PORT        GPIOA
+#define UART_GPIO_AF          GPIO_AF7_USART2
+#define UART_TX_PIN           GPIO_PIN_2
+#define UART_RX_PIN           GPIO_PIN_3
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -87,14 +87,24 @@ static inline void board_clock_init(void)
   // Enable clocks for LED, Button, Uart
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_USART3_CLK_ENABLE();
+  __HAL_RCC_USART2_CLK_ENABLE();
 }
+
+
+
 
 static inline void board_vbus_sense_init(void)
 {
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
+  // // Enable VBUS sense (B device) via pin PA9
+  // USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
+  // USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
+
+  ///---
+  // USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
+  // USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
+  // USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
+
+
 }
 
 #ifdef __cplusplus

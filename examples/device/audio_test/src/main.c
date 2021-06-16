@@ -77,14 +77,18 @@ uint16_t startVal = 0;
 void led_blinking_task(void);
 void audio_task(void);
 
+
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-
+  
   tusb_init();
 
-  // Init values
+   
+  TU_LOG2("USBD init");
+
+  // // Init values
   sampFreq = AUDIO_SAMPLE_RATE;
   clkValid = 1;
 
@@ -95,9 +99,10 @@ int main(void)
 
   while (1)
   {
-    tud_task(); // tinyusb device task
-    led_blinking_task();
-    audio_task();
+     tud_task(); // tinyusb device task
+     led_blinking_task();
+     audio_task();
+   // TU_LOG2("USBD init");
   }
 
 
@@ -143,6 +148,15 @@ void audio_task(void)
 {
   // Yet to be filled - e.g. put meas data into TX FIFOs etc.
   asm("nop");
+  
+  // if(RxHalfComplete_Flag==1){
+  //   RxHalfComplete_Flag = 0 ;
+  //   half_function();
+  // }
+  // if(RxComplete_Flag == 1){
+  //   RxComplete_Flag = 0 ; 
+  //   comp_function();
+  // }
 }
 
 //--------------------------------------------------------------------+

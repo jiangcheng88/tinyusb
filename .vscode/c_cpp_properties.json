@@ -8,8 +8,11 @@
             "defines": ["STM32F303xC",
                 "CFG_TUSB_MCU=OPT_MCU_STM32F3",
                 "TUSB_OPT_DEVICE_ENABLED",
-                "STM32F303xE"
+                "STM32F303xE",
                // "LOGGER_SWO"
+               "CFG_TUSB_DEBUG=2",
+               "CFG_TUD_AUDIO"
+
             ],
             "compilerPath": "/mnt/stm32/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi-gcc",
             "cStandard": "gnu17",

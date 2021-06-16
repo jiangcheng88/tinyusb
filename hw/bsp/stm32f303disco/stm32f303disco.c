@@ -80,6 +80,216 @@ UART_HandleTypeDef UartHandle;
 #define TX_PIN                GPIO_PIN_4
 #define RX_PIN                GPIO_PIN_5 
 
+
+
+
+/* Private variables ---------------------------------------------------------*/
+I2S_HandleTypeDef hi2s2;
+
+DMA_HandleTypeDef hdma_spi2_rx;
+
+
+/******************************************************************************/
+/* STM32F3xx Peripheral Interrupt Handlers                                    */
+/* Add here the Interrupt Handlers for the used peripherals.                  */
+/* For the available peripheral interrupt handler names,                      */
+/* please refer to the startup file (startup_stm32f3xx.s).                    */
+/******************************************************************************/
+
+/**
+  * @brief This function handles DMA1 channel4 global interrupt.
+  */
+void DMA1_Channel4_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel4_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel4_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_spi2_rx);
+  /* USER CODE BEGIN DMA1_Channel4_IRQn 1 */
+// #if CFG_TUSB_DEBUG >= 2
+//     TU_LOG2("DMA1_Channel4_IRQHandler SPI\r\n");
+// #endif
+  /* USER CODE END DMA1_Channel4_IRQn 1 */
+}
+
+void time_sleep_ms(uint32_t time) // ms
+{
+  uint32_t start_ms =board_millis();
+
+  while(  board_millis() - start_ms < time){
+  };
+}
+
+
+/**
+* @brief I2S MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hi2s: I2S handle pointer
+* @retval None
+*/
+void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
+{
+
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(hi2s->Instance==SPI2)
+  {
+      
+#if CFG_TUSB_DEBUG >= 2
+    TU_LOG2("HAL_I2S_MspInit SPI\r\n");
+#endif
+  /* USER CODE BEGIN SPI2_MspInit 0 */
+
+  /* USER CODE END SPI2_MspInit 0 */
+    /* Peripheral clock enable */
+    __HAL_RCC_SPI2_CLK_ENABLE();
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    /**I2S2 GPIO Configuration
+    PB12     ------> I2S2_WS
+    PB13     ------> I2S2_CK
+    PB15     ------> I2S2_SD
+    PC6     ------> I2S2_MCK
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF6_SPI2;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  }
+
+ // __HAL_RCC_SPI2_FORCE_RESET();
+
+  /* Release the I2S peripheral clock reset */
+ // __HAL_RCC_SPI2_RELEASE_RESET();
+
+ 
+
+
+  /* Configure the hdma_i2sRx handle parameters */   
+  hdma_spi2_rx.Init.Direction = DMA_PERIPH_TO_MEMORY ; 
+  hdma_spi2_rx.Init.PeriphInc  = DMA_PINC_DISABLE ; 
+  hdma_spi2_rx.Init.MemInc = DMA_MINC_ENABLE;
+  hdma_spi2_rx.Init.PeriphDataAlignment =  DMA_PDATAALIGN_HALFWORD ; 
+  hdma_spi2_rx.Init.MemDataAlignment = DMA_PDATAALIGN_HALFWORD ; 
+  hdma_spi2_rx.Init.Mode = DMA_CIRCULAR ;
+  hdma_spi2_rx.Init.Priority = DMA_PRIORITY_HIGH;
+  hdma_spi2_rx.Instance = DMA1_Channel4;
+
+  if ( HAL_DMA_Init(&hdma_spi2_rx) != HAL_OK)
+  {
+    while(1){
+#if CFG_TUSB_DEBUG >= 2
+    TU_LOG2("HAL_DMA_Init " );
+#endif
+    }
+  }
+
+  __HAL_LINKDMA(&hi2s2, hdmarx, hdma_spi2_rx);
+
+
+}
+
+
+/**
+  * @brief I2S2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2S2_Init(void)
+{
+  hi2s2.Instance = SPI2;
+  hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
+  hi2s2.Init.Standard = I2S_STANDARD_MSB;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_32K;
+  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+  hi2s2.Init.ClockSource = I2S_CLOCK_SYSCLK;
+  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
+  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+  {
+    while(1);
+
+  }
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+}
+
+
+void MX_DMA_Init(void)
+{
+   /* Enable the I2S DMA clock */
+  __HAL_RCC_DMA1_CLK_ENABLE(); 
+    /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+}
+
+
+
+/**
+* @brief I2S MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hi2s: I2S handle pointer
+* @retval None
+*/
+void HAL_I2S_MspDeInit(I2S_HandleTypeDef* hi2s)
+{
+    
+#if CFG_TUSB_DEBUG >= 2
+    TU_LOG2("HAL_I2S_MspDeInit " );
+#endif
+  if(hi2s->Instance==SPI2)
+  {
+  /* USER CODE BEGIN SPI2_MspDeInit 0 */
+
+  /* USER CODE END SPI2_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_SPI2_CLK_DISABLE();
+
+    /**I2S2 GPIO Configuration
+    PB12     ------> I2S2_WS
+    PB13     ------> I2S2_CK
+    PB15     ------> I2S2_SD
+    PC6     ------> I2S2_MCK
+    */
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15);
+
+    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_6);
+
+  /* USER CODE BEGIN SPI2_MspDeInit 1 */
+
+  /* USER CODE END SPI2_MspDeInit 1 */
+  }
+
+}
+#define buffer_size  32
+
+uint16_t  record[buffer_size]={0};
+
 /**
   * @brief  System Clock Configuration
   *         The system Clock is configured as follow :
@@ -114,6 +324,10 @@ static void SystemClock_Config(void)
   /* Configures the USB clock */
   HAL_RCCEx_GetPeriphCLKConfig(&RCC_PeriphClkInit);
   RCC_PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
+
+  //RCC_PeriphClkInit.I2sClockSelection =  RCC_PERIPHCLK_I2S;
+
+    
   HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit);
 
   /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
@@ -123,18 +337,18 @@ static void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
   /* Enable Power Clock */
   __HAL_RCC_PWR_CLK_ENABLE();
 }
 
-
-
 void board_init(void)
 {
   SystemClock_Config();
 
+  MX_GPIO_Init();
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -196,6 +410,20 @@ void board_init(void)
 
   // Enable USB clock
   __HAL_RCC_USB_CLK_ENABLE();
+  
+
+  MX_DMA_Init();
+  //__HAL_RCC_DMA1_CLK_ENABLE();
+  MX_I2S2_Init();
+  time_sleep_ms(1000);
+  HAL_StatusTypeDef ret = HAL_I2S_Receive_DMA(&hi2s2,record,buffer_size);
+
+  
+#if CFG_TUSB_DEBUG >= 2
+    TU_LOG2("------------  = %d\n ",ret);
+    //TU_LOG2("hi2s2.ErrorCode = %ld \n",hi2s2.ErrorCode);
+#endif
+
 }
 
 //--------------------------------------------------------------------+
@@ -248,3 +476,52 @@ void _init(void)
 {
 
 }
+
+
+uint16_t  usb_pcm[buffer_size] = {0};
+uint16_t  usb_pcm1[buffer_size] = {0};
+void half_function(void){
+  
+  uint16_t index =  0 ; 
+  for(index = 0 ; index < buffer_size/2 ; index ++)
+  {
+    usb_pcm[index] = record[index+buffer_size/2];
+  }
+//   tud_audio_write((uint8_t *)usb_pcm, buffer_size / 2);
+
+}
+
+void comp_function(void){
+  
+  uint16_t index =  0 ; 
+  for(index = 0 ; index < buffer_size/2 ; index ++)
+  {
+    usb_pcm1[index] = record[index];
+  }
+//  tud_audio_write((uint8_t *)usb_pcm1, buffer_size / 2);
+}
+
+
+
+int RxHalfComplete_Flag=0;
+int RxComplete_Flag=0;
+
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+//   #if CFG_TUSB_DEBUG >= 2
+//     TU_LOG2("HAL_I2S_RxHalfCpltCallback  status  = %d ",hi2s->State);
+// #endif
+	RxHalfComplete_Flag =1;
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+// #if CFG_TUSB_DEBUG >= 2
+//     TU_LOG2("HAL_I2S_RxCpltCallback  status  = %d ",hi2s->State);
+    
+// #endif
+	RxComplete_Flag=1;
+}
+
+
+

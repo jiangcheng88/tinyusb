@@ -8,14 +8,17 @@
             "name": "Debug",
             "type": "cortex-debug",
             "request": "launch",
-            "executable": "/mnt/stm32/tinyusb/examples/device/cdc_dual_ports/_build/stm32f303disco/stm32f303disco-cdc_dual_ports.elf",
+            //"executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f303disco/stm32f303disco-audio_test.elf",
+            "executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/feather_stm32f405/feather_stm32f405-audio_test.elf",
             //"stopAtEntry": false,
+            //"svdFile": "/mnt/stm32/tinyusb/examples/device/audio_test/stm32f303.svd",
+            "svdFile": "/mnt/stm32/tinyusb/examples/device/audio_test/stm32f405.svd"
             "cwd": "${workspaceRoot}",
             "servertype": "openocd",
             "runToMain": true,
             "configFiles": [
                 "interface/stlink-v1.cfg",
-                "target/stm32f3x.cfg"
+                "target/stm32f4x.cfg"
             ],
             
         }

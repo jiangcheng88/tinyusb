@@ -1,1 +1,1 @@
-[]
+[{"node":"GPIOA","expanded":true,"format":0,"pinned":false},{"node":"GPIOA.AFRL","expanded":true,"format":0},{"node":"OTG_FS_DEVICE","expanded":true,"format":0,"pinned":false},{"node":"OTG_FS_DEVICE.FS_DCTL","expanded":true,"format":0},{"node":"OTG_FS_DEVICE.FS_DSTS","expanded":true,"format":0},{"node":"OTG_FS_DEVICE.FS_DIEPMSK","expanded":true,"format":0},{"node":"OTG_FS_DEVICE.FS_DOEPMSK","expanded":true,"format":0},{"node":"OTG_FS_DEVICE.FS_DAINT","expanded":true,"format":0},{"node":"OTG_FS_DEVICE.FS_DAINTMSK","expanded":true,"format":0}]

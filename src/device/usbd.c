@@ -130,7 +130,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_AUDIO
   {
-    DRIVER_NAME("AUDIO")
+    DRIVER_NAME("AUDIOE")
     .init             = audiod_init,
     .reset            = audiod_reset,
     .open             = audiod_open,
@@ -393,7 +393,7 @@ bool tud_init (uint8_t rhport)
   // skip if already initialized
   if (_usbd_initialized) return _usbd_initialized;
 
-  TU_LOG2("USBD init\r\n");
+  TU_LOG2("USBD init %d\r\n",rhport);
 
   tu_varclr(&_usbd_dev);
 
@@ -474,7 +474,12 @@ bool tud_task_event_ready(void)
 void tud_task (void)
 {
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tusb_inited() ) {
+#if CFG_TUSB_DEBUG >= 2
+    TU_LOG2("tusb_inited not yet");
+#endif
+    return;
+  }
 
   // Loop until there is no more events in the queue
   while (1)
