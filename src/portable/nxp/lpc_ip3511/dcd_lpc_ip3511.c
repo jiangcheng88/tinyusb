@@ -34,7 +34,7 @@
  * - LPC54114
  * - LPC55s69
  */
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
+#if CFG_TUD_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC15XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC51UXX || \
@@ -321,6 +321,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   dcd_reg->INTEN |= TU_BIT(ep_id);
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
 }
 
 static void prepare_setup_packet(uint8_t rhport)

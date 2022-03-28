@@ -72,9 +72,9 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
 // use template layout report as defined by hid_mouse_report_t
 bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
-// Gamepad: convenient helper to send mouse report if application
+// Gamepad: convenient helper to send gamepad report if application
 // use template layout report TUD_HID_REPORT_DESC_GAMEPAD
-bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons);
+bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
@@ -85,7 +85,7 @@ static inline uint8_t tud_hid_get_protocol(void);
 static inline bool    tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 static inline bool    tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 static inline bool    tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
-static inline bool    tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons);
+static inline bool    tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -152,7 +152,7 @@ static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8
   return tud_hid_n_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
 }
 
-static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons)
+static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons)
 {
   return tud_hid_n_gamepad_report(0, report_id, x, y, z, rz, rx, ry, hat, buttons);
 }
@@ -195,16 +195,7 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
       HID_REPORT_COUNT ( 1                                      )  ,\
       HID_REPORT_SIZE  ( 8                                      )  ,\
       HID_INPUT        ( HID_CONSTANT                           )  ,\
-    /* 6-byte Keycodes */ \
-    HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
-      HID_USAGE_MIN    ( 0                                   )     ,\
-      HID_USAGE_MAX_N  ( 255, 2                              )     ,\
-      HID_LOGICAL_MIN  ( 0                                   )     ,\
-      HID_LOGICAL_MAX_N( 255, 2                              )     ,\
-      HID_REPORT_COUNT ( 6                                   )     ,\
-      HID_REPORT_SIZE  ( 8                                   )     ,\
-      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE )     ,\
-    /* 5-bit LED Indicator Kana | Compose | ScrollLock | CapsLock | NumLock */ \
+    /* Output 5-bit LED Indicator Kana | Compose | ScrollLock | CapsLock | NumLock */ \
     HID_USAGE_PAGE  ( HID_USAGE_PAGE_LED                   )       ,\
       HID_USAGE_MIN    ( 1                                       ) ,\
       HID_USAGE_MAX    ( 5                                       ) ,\
@@ -215,6 +206,15 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
       HID_REPORT_COUNT ( 1                                       ) ,\
       HID_REPORT_SIZE  ( 3                                       ) ,\
       HID_OUTPUT       ( HID_CONSTANT                            ) ,\
+    /* 6-byte Keycodes */ \
+    HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
+      HID_USAGE_MIN    ( 0                                   )     ,\
+      HID_USAGE_MAX_N  ( 255, 2                              )     ,\
+      HID_LOGICAL_MIN  ( 0                                   )     ,\
+      HID_LOGICAL_MAX_N( 255, 2                              )     ,\
+      HID_REPORT_COUNT ( 6                                   )     ,\
+      HID_REPORT_SIZE  ( 8                                   )     ,\
+      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE )     ,\
   HID_COLLECTION_END \
 
 // Mouse Report Descriptor Template
@@ -310,8 +310,8 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
   HID_COLLECTION_END \
 
 // Gamepad Report Descriptor Template
-// with 16 buttons, 2 joysticks and 1 hat/dpad with following layout
-// | X | Y | Z | Rz | Rx | Ry (1 byte each) | hat/DPAD (1 byte) | Button Map (2 bytes) |
+// with 32 buttons, 2 joysticks and 1 hat/dpad with following layout
+// | X | Y | Z | Rz | Rx | Ry (1 byte each) | hat/DPAD (1 byte) | Button Map (4 bytes) |
 #define TUD_HID_REPORT_DESC_GAMEPAD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                 ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )                 ,\
@@ -319,37 +319,37 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     /* Report ID if any */\
     __VA_ARGS__ \
     /* 8 bit X, Y, Z, Rz, Rx, Ry (min -127, max 127 ) */ \
-    HID_USAGE_PAGE   ( HID_USAGE_PAGE_DESKTOP                 ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_X                    ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_Z                    ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_RZ                   ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_RX                   ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_RY                   ) ,\
-    HID_LOGICAL_MIN  ( 0x81                                   ) ,\
-    HID_LOGICAL_MAX  ( 0x7f                                   ) ,\
-    HID_REPORT_COUNT ( 6                                      ) ,\
-    HID_REPORT_SIZE  ( 8                                      ) ,\
-    HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+    HID_USAGE_PAGE     ( HID_USAGE_PAGE_DESKTOP                 ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_X                    ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_Y                    ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_Z                    ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_RZ                   ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_RX                   ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_RY                   ) ,\
+    HID_LOGICAL_MIN    ( 0x81                                   ) ,\
+    HID_LOGICAL_MAX    ( 0x7f                                   ) ,\
+    HID_REPORT_COUNT   ( 6                                      ) ,\
+    HID_REPORT_SIZE    ( 8                                      ) ,\
+    HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
     /* 8 bit DPad/Hat Button Map  */ \
-    HID_USAGE_PAGE   ( HID_USAGE_PAGE_DESKTOP                 ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_HAT_SWITCH           ) ,\
-    HID_LOGICAL_MIN  ( 1                                      ) ,\
-    HID_LOGICAL_MAX  ( 8                                      ) ,\
-    HID_PHYSICAL_MIN ( 0                                      ) ,\
-    HID_PHYSICAL_MAX_N ( 315, 2                               ) ,\
-    HID_REPORT_COUNT ( 1                                      ) ,\
-    HID_REPORT_SIZE  ( 8                                      ) ,\
-    HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
-    /* 16 bit Button Map */ \
-    HID_USAGE_PAGE   ( HID_USAGE_PAGE_BUTTON                  ) ,\
-    HID_USAGE_MIN    ( 1                                      ) ,\
-    HID_USAGE_MAX    ( 16                                     ) ,\
-    HID_LOGICAL_MIN  ( 0                                      ) ,\
-    HID_LOGICAL_MAX  ( 1                                      ) ,\
-    HID_REPORT_COUNT ( 16                                     ) ,\
-    HID_REPORT_SIZE  ( 1                                      ) ,\
-    HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+    HID_USAGE_PAGE     ( HID_USAGE_PAGE_DESKTOP                 ) ,\
+    HID_USAGE          ( HID_USAGE_DESKTOP_HAT_SWITCH           ) ,\
+    HID_LOGICAL_MIN    ( 1                                      ) ,\
+    HID_LOGICAL_MAX    ( 8                                      ) ,\
+    HID_PHYSICAL_MIN   ( 0                                      ) ,\
+    HID_PHYSICAL_MAX_N ( 315, 2                                 ) ,\
+    HID_REPORT_COUNT   ( 1                                      ) ,\
+    HID_REPORT_SIZE    ( 8                                      ) ,\
+    HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+    /* 32 bit Button Map */ \
+    HID_USAGE_PAGE     ( HID_USAGE_PAGE_BUTTON                  ) ,\
+    HID_USAGE_MIN      ( 1                                      ) ,\
+    HID_USAGE_MAX      ( 32                                     ) ,\
+    HID_LOGICAL_MIN    ( 0                                      ) ,\
+    HID_LOGICAL_MAX    ( 1                                      ) ,\
+    HID_REPORT_COUNT   ( 32                                     ) ,\
+    HID_REPORT_SIZE    ( 1                                      ) ,\
+    HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
 
 // HID Generic Input & Output
@@ -364,14 +364,14 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
       /* Input */ \
       HID_USAGE       ( 0x02                                   ),\
       HID_LOGICAL_MIN ( 0x00                                   ),\
-      HID_LOGICAL_MAX ( 0xff                                   ),\
+      HID_LOGICAL_MAX_N ( 0xff, 2                              ),\
       HID_REPORT_SIZE ( 8                                      ),\
       HID_REPORT_COUNT( report_size                            ),\
       HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),\
       /* Output */ \
       HID_USAGE       ( 0x03                                    ),\
       HID_LOGICAL_MIN ( 0x00                                    ),\
-      HID_LOGICAL_MAX ( 0xff                                    ),\
+      HID_LOGICAL_MAX_N ( 0xff, 2                               ),\
       HID_REPORT_SIZE ( 8                                       ),\
       HID_REPORT_COUNT( report_size                             ),\
       HID_OUTPUT      ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),\

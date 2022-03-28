@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VENDOR)
+#if (CFG_TUD_ENABLED && CFG_TUD_VENDOR)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -103,10 +103,17 @@ uint32_t tud_vendor_n_read (uint8_t itf, void* buffer, uint32_t bufsize)
   return num_read;
 }
 
+void tud_vendor_n_read_flush (uint8_t itf)
+{
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  tu_fifo_clear(&p_itf->rx_ff);
+  _prep_out_transaction(p_itf);
+}
+
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-static bool maybe_transmit(vendord_interface_t* p_itf)
+static uint16_t maybe_transmit(vendord_interface_t* p_itf)
 {
   // skip if previous transfer not complete
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_itf->ep_in) );
@@ -116,14 +123,24 @@ static bool maybe_transmit(vendord_interface_t* p_itf)
   {
     TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, count) );
   }
-  return true;
+  return count;
 }
 
 uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_itf->tx_ff, buffer, bufsize);
-  maybe_transmit(p_itf);
+  if (tu_fifo_count(&p_itf->tx_ff) >= CFG_TUD_VENDOR_EPSIZE) {
+    maybe_transmit(p_itf);
+  }
+  return ret;
+}
+
+uint32_t tud_vendor_n_flush (uint8_t itf)
+{
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  uint32_t ret = maybe_transmit(p_itf);
+
   return ret;
 }
 
@@ -168,12 +185,12 @@ void vendord_reset(uint8_t rhport)
   }
 }
 
-uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
+uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
-  TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass, 0);
+  TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == desc_itf->bInterfaceClass, 0);
 
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
-  TU_VERIFY(max_len >= drv_len, 0);
+  uint8_t const * p_desc = tu_desc_next(desc_itf);
+  uint8_t const * desc_end = p_desc + max_len;
 
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
@@ -187,19 +204,30 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   }
   TU_VERIFY(p_vendor, 0);
 
-  // Open endpoint pair with usbd helper
-  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_vendor->ep_out, &p_vendor->ep_in), 0);
-
-  p_vendor->itf_num = itf_desc->bInterfaceNumber;
-
-  // Prepare for incoming data
-  if ( !usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, sizeof(p_vendor->epout_buf)) )
+  p_vendor->itf_num = desc_itf->bInterfaceNumber;
+  if (desc_itf->bNumEndpoints)
   {
-    TU_LOG_FAILED();
-    TU_BREAKPOINT();
+    // skip non-endpoint descriptors
+    while ( (TUSB_DESC_ENDPOINT != tu_desc_type(p_desc)) && (p_desc < desc_end) )
+    {
+      p_desc = tu_desc_next(p_desc);
+    }
+
+    // Open endpoint pair with usbd helper
+    TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_BULK, &p_vendor->ep_out, &p_vendor->ep_in), 0);
+
+    p_desc += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+
+    // Prepare for incoming data
+    if ( p_vendor->ep_out )
+    {
+      TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, sizeof(p_vendor->epout_buf)), 0);
+    }
+
+    if ( p_vendor->ep_in ) maybe_transmit(p_vendor);
   }
 
-  return drv_len;
+  return (uintptr_t) p_desc - (uintptr_t) desc_itf;
 }
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -229,6 +257,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   }
   else if ( ep_addr == p_itf->ep_in )
   {
+    if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, xferred_bytes);
     // Send complete, try to send more if possible
     maybe_transmit(p_itf);
   }

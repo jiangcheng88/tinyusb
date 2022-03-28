@@ -27,14 +27,9 @@
 #endif
 
 // RHPort max operational speed can defined by board.mk
-// Default to Highspeed for MCU with internal HighSpeed PHY (can be port specific), otherwise FullSpeed
+// Default to max (auto) speed for MCU with internal HighSpeed PHY
 #ifndef BOARD_DEVICE_RHPORT_SPEED
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || \
-       CFG_TUSB_MCU == OPT_MCU_NUC505  || CFG_TUSB_MCU == OPT_MCU_CXD56)
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_HIGH_SPEED
-  #else
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_FULL_SPEED
-  #endif
+  #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
 // Device mode with rhport and speed defined by board.mk
@@ -76,12 +71,11 @@
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
-#define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE    4096
-
 //------------- CLASS -------------//
+#define CFG_TUD_DFU    1
 
-#define CFG_TUD_DFU_RUNTIME 0
-#define CFG_TUD_DFU_MODE    1
+// DFU buffer size, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
+#define CFG_TUD_DFU_XFER_BUFSIZE    ( OPT_MODE_HIGH_SPEED ? 512 : 64 )
 
 #ifdef __cplusplus
  }

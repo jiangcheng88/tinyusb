@@ -5,16 +5,17 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
-# ESP32-SX and RP2040 has its own CMake build system
-ifneq ($(FAMILY),esp32s2)
-ifneq ($(FAMILY),esp32s3)
-ifneq ($(FAMILY),rp2040)
+# ESP32-Sx and RP2040 has its own CMake build system
+ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
+
 # ---------------------------------------
-# GNU Make build system
+# Compiler Flags
 # ---------------------------------------
 
+LIBS_GCC ?= -lgcc -lm -lnosys
+
 # libc
-LIBS += -lgcc -lm -lnosys
+LIBS += $(LIBS_GCC)
 
 ifneq ($(BOARD), spresense)
 LIBS += -lc
@@ -33,8 +34,10 @@ SRC_C += \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
 	src/class/msc/msc_device.c \
-	src/class/net/net_device.c \
+	src/class/net/ecm_rndis_device.c \
+	src/class/net/ncm_device.c \
 	src/class/usbtmc/usbtmc_device.c \
+	src/class/video/video_device.c \
 	src/class/vendor/vendor_device.c
 
 # TinyUSB stack include
@@ -42,7 +45,17 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
-LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+# LTO makes it difficult to analyze map file for optimizing size purpose
+# We will run this option in ci
+ifeq ($(NO_LTO),1)
+CFLAGS := $(filter-out -flto,$(CFLAGS))
+endif
+
+ifneq ($(LD_FILE),)
+LDFLAGS_LD_FILE ?= -Wl,-T,$(TOP)/$(LD_FILE)
+endif
+
+LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
@@ -64,6 +77,10 @@ $(info CFLAGS  $(CFLAGS) ) $(info )
 $(info LDFLAGS $(LDFLAGS)) $(info )
 $(info ASFLAGS $(ASFLAGS)) $(info )
 endif
+
+# ---------------------------------------
+# Rules
+# ---------------------------------------
 
 all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
@@ -124,10 +141,16 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
+endif # GNU Make
+
 size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
 	@$(SIZE) $<
 	-@echo ''
+
+# linkermap must be install previously at https://github.com/hathach/linkermap
+linkermap: $(BUILD)/$(PROJECT).elf
+	@linkermap -v $<.map
 
 .PHONY: clean
 clean:
@@ -137,21 +160,18 @@ else
 	$(RM) -rf $(BUILD)
 endif
 
-endif
-endif
-endif # GNU Make
-
 # ---------------------------------------
 # Flash Targets
 # ---------------------------------------
 
-# Flash binary using Jlink
+# Jlink binary
 ifeq ($(OS),Windows_NT)
   JLINKEXE = JLink.exe
 else
   JLINKEXE = JLinkExe
 endif
 
+# Jlink Interface
 JLINK_IF ?= swd
 
 # Flash using jlink
@@ -164,6 +184,7 @@ flash-jlink: $(BUILD)/$(PROJECT).hex
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
+<<<<<<< HEAD
 
 OPENOCD := openocd -f interface/stlink-v1.cfg \
 	-f  target/stm32f3x.cfg 
@@ -205,12 +226,31 @@ flash-stlink-f4-serial: $(BUILD)/$(PROJECT).elf
 				-c 'reset run' \
 				-c exit 
 # flash with pyocd
+=======
+# Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
+flash-stlink: $(BUILD)/$(PROJECT).elf
+	STM32_Programmer_CLI --connect port=swd --write $< --go
+
+$(BUILD)/$(PROJECT)-sunxi.bin: $(BUILD)/$(PROJECT).bin
+	$(PYTHON) $(TOP)/tools/mksunxi.py $< $@
+
+flash-xfel: $(BUILD)/$(PROJECT)-sunxi.bin
+	xfel spinor write 0 $<
+	xfel reset
+
+# Flash using pyocd
+PYOCD_OPTION ?=
+>>>>>>> edd8eb3279c2440e9d4590312f2104e58beafe12
 flash-pyocd: $(BUILD)/$(PROJECT).hex
-	pyocd flash -t $(PYOCD_TARGET) $<
+	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-# flash with Black Magic Probe
+# Flash using openocd
+OPENOCD_OPTION ?=
+flash-openocd: $(BUILD)/$(PROJECT).elf
+	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
+# flash with Black Magic Probe
 # This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
 BMP ?= /dev/ttyBmpGdb
 

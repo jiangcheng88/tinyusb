@@ -5,7 +5,7 @@
 # Build directory
 BUILD := _build/$(BOARD)
 
-PROJECT := $(BOARD)-$(notdir $(CURDIR))
+PROJECT := $(notdir $(CURDIR))
 BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Handy check parameter function
@@ -54,6 +54,8 @@ endif
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
+# Allow for -Os to be changed by board makefiles in case -Os is not allowed
+CFLAGS_OPTIMIZED ?= -Os
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
@@ -65,10 +67,12 @@ MKDIR = mkdir
 ifeq ($(CMDEXE),1)
   CP = copy
   RM = del
+  PYTHON = python
 else
   SED = sed
   CP = cp
   RM = rm
+  PYTHON = python3
 endif
 
 #-------------- Source files and compiler flags --------------
@@ -101,14 +105,21 @@ CFLAGS += \
   -Wsign-compare \
   -Wmissing-format-attribute \
   -Wunreachable-code \
+<<<<<<< HEAD
   #-Wcast-align \
   -Wcast-function-type
+=======
+  -Wcast-align \
+  -Wcast-function-type \
+  -Wcast-qual \
+  -Wnull-dereference
+>>>>>>> edd8eb3279c2440e9d4590312f2104e58beafe12
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og
 else
-  CFLAGS += -Os
+  CFLAGS += $(CFLAGS_OPTIMIZED)
 endif
 
 # Log level is mapped to TUSB DEBUG option

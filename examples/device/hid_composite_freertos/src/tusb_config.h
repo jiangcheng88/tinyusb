@@ -45,14 +45,9 @@
 #endif
 
 // RHPort max operational speed can defined by board.mk
-// Default to Highspeed for MCU with internal HighSpeed PHY (can be port specific), otherwise FullSpeed
+// Default to max (auto) speed for MCU with internal HighSpeed PHY
 #ifndef BOARD_DEVICE_RHPORT_SPEED
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || \
-       CFG_TUSB_MCU == OPT_MCU_NUC505  || CFG_TUSB_MCU == OPT_MCU_CXD56)
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_HIGH_SPEED
-  #else
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_FULL_SPEED
-  #endif
+  #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
 // Device mode with rhport and speed defined by board.mk
@@ -67,8 +62,15 @@
 // This examples use FreeRTOS
 #define CFG_TUSB_OS               OPT_OS_FREERTOS
 
-// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
+// Espressif IDF requires "freertos/" prefix in include path
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  #define CFG_TUSB_OS_INC_PATH    freertos/
+#endif
+
+
+#ifndef CFG_TUSB_DEBUG
+#define CFG_TUSB_DEBUG           0
+#endif
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put

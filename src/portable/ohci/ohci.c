@@ -24,10 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include <common/tusb_common.h>
+#include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -35,7 +34,6 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
-#include "host/usbh_hcd.h"
 #include "ohci.h"
 
 // TODO remove
@@ -280,10 +278,13 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t
     tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
+  hcd_devtree_info_t devtree_info;
+  hcd_devtree_get_info(dev_addr, &devtree_info);
+
   p_ed->dev_addr          = dev_addr;
   p_ed->ep_number         = ep_addr & 0x0F;
   p_ed->pid               = (xfer_type == TUSB_XFER_CONTROL) ? PID_FROM_TD : (tu_edpt_dir(ep_addr) ? PID_IN : PID_OUT);
-  p_ed->speed             = _usbh_devices[dev_addr].speed;
+  p_ed->speed             = devtree_info.speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_packet_size   = ep_size;
 
@@ -312,7 +313,7 @@ static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  for(uint32_t i=0; i<ED_MAX; i++)
   {
     if ( (ed_pool[i].dev_addr == dev_addr) &&
           ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == PID_IN) )
@@ -328,7 +329,7 @@ static ohci_ed_t * ed_find_free(void)
 {
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; i++)
+  for(uint8_t i = 0; i < ED_MAX; i++)
   {
     if ( !ed_pool[i].used ) return &ed_pool[i];
   }
@@ -367,7 +368,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
 static ohci_gtd_t * gtd_find_free(void)
 {
-  for(uint8_t i=0; i < HCD_MAX_XFER; i++)
+  for(uint8_t i=0; i < GTD_MAX; i++)
   {
     if ( !ohci_data.gtd_pool[i].used ) return &ohci_data.gtd_pool[i];
   }
@@ -411,7 +412,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   }
   TU_ASSERT(p_ed);
 
-  ed_init( p_ed, dev_addr, ep_desc->wMaxPacketSize.size, ep_desc->bEndpointAddress,
+  ed_init( p_ed, dev_addr, tu_edpt_packet_size(ep_desc), ep_desc->bEndpointAddress,
             ep_desc->bmAttributes.xfer, ep_desc->bInterval );
 
   // control of dev0 is used as static async head
@@ -487,18 +488,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 
   return true;
-}
-
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
-  return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail);
-}
-
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
-  return p_ed->td_head.halted && p_ed->is_stalled;
 }
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)

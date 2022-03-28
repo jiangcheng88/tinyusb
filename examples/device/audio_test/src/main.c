@@ -154,6 +154,7 @@ void tud_resume_cb(void)
 void audio_task(void)
 {
   // Yet to be filled - e.g. put meas data into TX FIFOs etc.
+<<<<<<< HEAD
   asm("nop");
   if(RxHalfComplete_Flag==1){
       RxHalfComplete_Flag = 0 ;
@@ -165,6 +166,9 @@ void audio_task(void)
     comp_function();
    //TU_LOG2("0");
   }
+=======
+  // asm("nop");
+>>>>>>> edd8eb3279c2440e9d4590312f2104e58beafe12
 }
 
 //--------------------------------------------------------------------+

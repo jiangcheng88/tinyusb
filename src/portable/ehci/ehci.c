@@ -24,11 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "common/tusb_common.h"
+#include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && \
-   (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX )
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_EHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -36,48 +34,66 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
-#include "host/usbh_hcd.h"
-#include "hcd_ehci.h"
+#include "ehci_api.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Debug level of EHCI
+#define EHCI_DBG     2
+
+// Framelist size as small as possible to save SRAM
+#ifdef TUP_USBIP_CHIPIDEA_HS
+  // NXP Transdimension: 8 elements
+  #define FRAMELIST_SIZE_BIT_VALUE      7u
+  #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \
+                                         ((FRAMELIST_SIZE_BIT_VALUE >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB))
+#else
+  // STD EHCI: 256 elements
+  #define FRAMELIST_SIZE_BIT_VALUE      2u
+  #define FRAMELIST_SIZE_USBCMD_VALUE   ((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE)
+#endif
+
+#define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
+
+#define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX)
+#define QTD_MAX      QHD_MAX
+
 typedef struct
 {
-  ehci_link_t period_framelist[EHCI_FRAMELIST_SIZE];
+  ehci_link_t period_framelist[FRAMELIST_SIZE];
 
-  // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
+  // TODO only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
+  // TODO better implementation without dummy head to save SRAM
   ehci_qhd_t period_head_arr[4];
 
   // Note control qhd of dev0 is used as head of async list
   struct {
     ehci_qhd_t qhd;
     ehci_qtd_t qtd;
-  }control[CFG_TUSB_HOST_DEVICE_MAX+1];
+  }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
 
-  ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
-  ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
+  ehci_qhd_t qhd_pool[QHD_MAX];
+  ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
 
   volatile uint32_t uframe_number;
 }ehci_data_t;
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
+
 // Periodic frame list must be 4K alignment
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
 //--------------------------------------------------------------------+
-static inline ehci_link_t* get_period_head(uint8_t rhport, uint8_t interval_ms)
+static inline ehci_link_t* get_period_head(uint8_t rhport, uint32_t interval_ms)
 {
   (void) rhport;
-  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ];
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
 }
 
 static inline ehci_qhd_t* qhd_control(uint8_t dev_addr)
@@ -109,13 +125,13 @@ static inline bool qhd_has_xact_error (ehci_qhd_t * p_qhd)
   //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
 }
 
-static void qhd_init (ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 static inline ehci_qtd_t* qtd_find_free (void);
 static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
 static inline void qtd_insert_to_qhd (ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new);
 static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
-static void qtd_init (ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes);
+static void qtd_init (ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
@@ -176,7 +192,11 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
       prev = list_next(prev) )
   {
     // TODO check type for ISO iTD and siTD
+    // TODO Suppress cast-align warning
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-align"
     ehci_qhd_t* qhd = (ehci_qhd_t*) list_next(prev);
+    #pragma GCC diagnostic pop
     if ( qhd->dev_addr == dev_addr )
     {
       // TODO deactive all TD, wait for QHD to inactive before removal
@@ -218,12 +238,13 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   ehci_data.regs->command_bm.async_adv_doorbell = 1;
 }
 
-// EHCI controller init
-bool hcd_ehci_init(uint8_t rhport)
+bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 {
+  (void) capability_reg; // not used yet
+
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
 
-  ehci_data.regs = (ehci_registers_t* ) hcd_ehci_register_addr(rhport);
+  ehci_data.regs = (ehci_registers_t* ) operatial_reg;
 
   ehci_registers_t* regs = ehci_data.regs;
 
@@ -249,37 +270,38 @@ bool hcd_ehci_init(uint8_t rhport)
 
   //------------- Periodic List -------------//
   // Build the polling interval tree with 1 ms, 2 ms, 4 ms and 8 ms (framesize) only
-  for(uint32_t i=0; i<4; i++)
+  for ( uint32_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++ )
   {
-    ehci_data.period_head_arr[i].int_smask    = 1; // queue head in period list must have smask non-zero
+    ehci_data.period_head_arr[i].int_smask          = 1; // queue head in period list must have smask non-zero
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
   ehci_link_t * const framelist  = ehci_data.period_framelist;
-  ehci_link_t * const period_1ms = get_period_head(rhport, 1);
+  ehci_link_t * const period_1ms = get_period_head(rhport, 1u);
+
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
   // 1, 5 --> period_head_arr[2] (4ms)
   // 3 --> period_head_arr[3] (8ms)
 
   // TODO EHCI_FRAMELIST_SIZE with other size than 8
-  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i++)
+  for(uint32_t i=0; i<FRAMELIST_SIZE; i++)
   {
     framelist[i].address = (uint32_t) period_1ms;
     framelist[i].type    = EHCI_QTYPE_QHD;
   }
 
-  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i+=2)
+  for(uint32_t i=0; i<FRAMELIST_SIZE; i+=2)
   {
-    list_insert(framelist + i, get_period_head(rhport, 2), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 2u), EHCI_QTYPE_QHD);
   }
 
-  for(uint32_t i=1; i<EHCI_FRAMELIST_SIZE; i+=4)
+  for(uint32_t i=1; i<FRAMELIST_SIZE; i+=4)
   {
-    list_insert(framelist + i, get_period_head(rhport, 4), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 4u), EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist+3, get_period_head(rhport, 8), EHCI_QTYPE_QHD);
+  list_insert(framelist+3, get_period_head(rhport, 8u), EHCI_QTYPE_QHD);
 
   period_1ms->terminate    = 1;
 
@@ -289,10 +311,9 @@ bool hcd_ehci_init(uint8_t rhport)
   regs->nxp_tt_control = 0;
 
   //------------- USB CMD Register -------------//
-  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE)
-                | TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) // TODO enable period list only there is int/iso endpoint
-                | ((EHCI_CFG_FRAMELIST_SIZE_BITS & TU_BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
-                | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
+  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE) |
+                   TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) |  // TODO enable period list only there is int/iso endpoint
+                   FRAMELIST_SIZE_USBCMD_VALUE;
 
   //------------- ConfigFlag Register (skip) -------------//
   regs->portsc_bm.port_power = 1; // enable port power
@@ -378,7 +399,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
-  qtd_init(td, (void*) setup_packet, 8);
+  qtd_init(td, setup_packet, 8);
   td->pid          = EHCI_PID_SETUP;
   td->int_on_complete = 1;
   td->next.terminate  = 1;
@@ -440,18 +461,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
-}
-
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
-}
-
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
@@ -472,7 +481,7 @@ static void async_advance_isr(uint8_t rhport)
   (void) rhport;
 
   ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
-  for(uint32_t i = 0; i < HCD_MAX_ENDPOINT; i++)
+  for(uint32_t i = 0; i < QHD_MAX; i++)
   {
     if ( qhd_pool[i].removing )
     {
@@ -482,16 +491,16 @@ static void async_advance_isr(uint8_t rhport)
   }
 }
 
-static void port_connect_status_change_isr(uint8_t hostid)
+static void port_connect_status_change_isr(uint8_t rhport)
 {
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if (ehci_data.regs->portsc_bm.current_connect_status)
   {
-    hcd_port_reset(hostid);
-    hcd_event_device_attach(hostid, true);
+    hcd_port_reset(rhport);
+    hcd_event_device_attach(rhport, true);
   }else // device unplugged
   {
-    hcd_event_device_remove(hostid, true);
+    hcd_event_device_remove(rhport, true);
   }
 }
 
@@ -531,16 +540,16 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 }
 
-static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
+static void period_list_xfer_complete_isr(uint8_t hostid, uint32_t interval_ms)
 {
   uint16_t max_loop = 0;
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1u);
   ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
-      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
+      max_loop < (QHD_MAX + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUH_DEVICE_MAX)
   {
     switch ( next_item.type )
     {
@@ -617,8 +626,8 @@ static void xfer_error_isr(uint8_t hostid)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 
   //------------- TODO refractor period list -------------//
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
-  for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1u);
+  for (uint32_t interval_ms=1; interval_ms <= FRAMELIST_SIZE; interval_ms *= 2)
   {
     ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
@@ -647,6 +656,26 @@ static void xfer_error_isr(uint8_t hostid)
   }
 }
 
+#if CFG_TUSB_DEBUG >= EHCI_DBG
+
+static inline void print_portsc(ehci_registers_t* regs)
+{
+  TU_LOG_HEX(EHCI_DBG, regs->portsc);
+  TU_LOG(EHCI_DBG, "  Current Connect Status: %u\r\n", regs->portsc_bm.current_connect_status);
+  TU_LOG(EHCI_DBG, "  Connect Status Change : %u\r\n", regs->portsc_bm.connect_status_change);
+  TU_LOG(EHCI_DBG, "  Port Enabled          : %u\r\n", regs->portsc_bm.port_enabled);
+  TU_LOG(EHCI_DBG, "  Port Enabled Change   : %u\r\n", regs->portsc_bm.port_enable_change);
+
+  TU_LOG(EHCI_DBG, "  Port Reset            : %u\r\n", regs->portsc_bm.port_reset);
+  TU_LOG(EHCI_DBG, "  Port Power            : %u\r\n", regs->portsc_bm.port_power);
+}
+
+#else
+
+#define print_portsc(_reg)
+
+#endif
+
 //------------- Host Controller Driver's Interrupt Handler -------------//
 void hcd_int_handler(uint8_t rhport)
 {
@@ -655,18 +684,19 @@ void hcd_int_handler(uint8_t rhport)
   uint32_t int_status = regs->status;
   int_status &= regs->inten;
   
-  regs->status |= int_status; // Acknowledge handled interrupt
+  regs->status = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 
   if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER)
   {
-    ehci_data.uframe_number += (EHCI_FRAMELIST_SIZE << 3);
+    ehci_data.uframe_number += (FRAMELIST_SIZE << 3);
   }
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+    print_portsc(regs);
 
     if (regs->portsc_bm.connect_status_change)
     {
@@ -689,7 +719,7 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
-    for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
+    for (uint32_t i=1; i <= FRAMELIST_SIZE; i *= 2)
     {
       period_list_xfer_complete_isr( rhport, i );
     }
@@ -710,7 +740,7 @@ void hcd_int_handler(uint8_t rhport)
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* qhd_find_free (void)
 {
-  for (uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  for (uint32_t i=0; i<QHD_MAX; i++)
   {
     if ( !ehci_data.qhd_pool[i].used ) return &ehci_data.qhd_pool[i];
   }
@@ -727,7 +757,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
 
-  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  for(uint32_t i=0; i<QHD_MAX; i++)
   {
     if ( (qhd_pool[i].dev_addr == dev_addr) &&
           ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) )
@@ -742,7 +772,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 //------------- TD helper -------------//
 static inline ehci_qtd_t* qtd_find_free(void)
 {
-  for (uint32_t i=0; i<HCD_MAX_XFER; i++)
+  for (uint32_t i=0; i<QTD_MAX; i++)
   {
     if ( !ehci_data.qtd_pool[i].used ) return &ehci_data.qtd_pool[i];
   }
@@ -786,16 +816,19 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     tu_memclr(p_qhd, sizeof(ehci_qhd_t));
   }
 
+  hcd_devtree_info_t devtree_info;
+  hcd_devtree_get_info(dev_addr, &devtree_info);
+
   uint8_t const xfer_type = ep_desc->bmAttributes.xfer;
   uint8_t const interval = ep_desc->bInterval;
 
   p_qhd->dev_addr           = dev_addr;
   p_qhd->fl_inactive_next_xact = 0;
   p_qhd->ep_number          = tu_edpt_number(ep_desc->bEndpointAddress);
-  p_qhd->ep_speed           = _usbh_devices[dev_addr].speed;
+  p_qhd->ep_speed           = devtree_info.speed;
   p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
-  p_qhd->max_packet_size    = ep_desc->wMaxPacketSize.size;
+  p_qhd->max_packet_size    = tu_edpt_packet_size(ep_desc);
   p_qhd->fl_ctrl_ep_flag    = ((xfer_type == TUSB_XFER_CONTROL) && (p_qhd->ep_speed != TUSB_SPEED_HIGH))  ? 1 : 0;
   p_qhd->nak_reload         = 0;
 
@@ -829,8 +862,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     p_qhd->int_smask = p_qhd->fl_int_cmask = 0;
   }
 
-  p_qhd->fl_hub_addr     = _usbh_devices[dev_addr].hub_addr;
-  p_qhd->fl_hub_port     = _usbh_devices[dev_addr].hub_port;
+  p_qhd->fl_hub_addr     = devtree_info.hub_addr;
+  p_qhd->fl_hub_port     = devtree_info.hub_port;
   p_qhd->mult            = 1; // TODO not use high bandwidth/park mode yet
 
   //------------- HCD Management Data -------------//
@@ -850,7 +883,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   }
 }
 
-static void qtd_init(ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes)
+static void qtd_init(ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes)
 {
   tu_memclr(p_qtd, sizeof(ehci_qtd_t));
 

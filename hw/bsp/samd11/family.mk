@@ -3,7 +3,6 @@ DEPS_SUBMODULES += hw/mcu/microchip
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
-	-flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \
@@ -11,6 +10,9 @@ CFLAGS += \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DOSC32K_OVERWRITE_CALIBRATION=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD11
+
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \

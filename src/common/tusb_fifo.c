@@ -102,7 +102,7 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 // TODO generalize with configurable 1 byte or 4 byte each read
 static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t len)
 {
-  volatile uint32_t * rx_fifo = (volatile uint32_t *) app_buf;
+  volatile const uint32_t * rx_fifo = (volatile const uint32_t *) app_buf;
 
   // Reading full available 32 bit words from const app address
   uint16_t full_words = len >> 2;
@@ -201,7 +201,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
         ff_buf += nLin_4n_bytes;
 
         // There could be odd 1-3 bytes before the wrap-around boundary
-        volatile uint32_t * rx_fifo = (volatile uint32_t *) app_buf;
+        volatile const uint32_t * rx_fifo = (volatile const uint32_t *) app_buf;
         uint8_t rem = nLin_bytes & 0x03;
         if (rem > 0)
         {
@@ -323,9 +323,7 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
-
-  // TODO warning: assuming signed overflow does not occur when assuming that (X + c) < X is always false [-Wstrict-overflow]
-  if ((p > p + offset) || (p + offset > f->max_pointer_idx))
+  if ((p > (uint16_t)(p + offset)) || ((uint16_t)(p + offset) > f->max_pointer_idx))
   {
     p = (p + offset) + f->non_used_index_space;
   }
@@ -342,7 +340,7 @@ static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
-  if ((p < p - offset) || (p - offset > f->max_pointer_idx))
+  if ((p < (uint16_t)(p - offset)) || ((uint16_t)(p - offset) > f->max_pointer_idx))
   {
     p = (p - offset) - f->non_used_index_space;
   }
@@ -718,7 +716,7 @@ bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 uint16_t tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
 {
   _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
+  uint16_t ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
   _ff_unlock(f->mutex_rd);
   return ret;
 }
@@ -743,21 +741,28 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
 {
   _ff_lock(f->mutex_wr);
 
-  uint16_t w = f->wr_idx;
+  bool ret;
+  uint16_t const w = f->wr_idx;
 
-  if ( _tu_fifo_full(f, w, f->rd_idx) && !f->overwritable ) return false;
+  if ( _tu_fifo_full(f, w, f->rd_idx) && !f->overwritable )
+  {
+    ret = false;
+  }else
+  {
+    uint16_t wRel = get_relative_pointer(f, w);
 
-  uint16_t wRel = get_relative_pointer(f, w);
+    // Write data
+    _ff_push(f, data, wRel);
 
-  // Write data
-  _ff_push(f, data, wRel);
+    // Advance pointer
+    f->wr_idx = advance_pointer(f, w, 1);
 
-  // Advance pointer
-  f->wr_idx = advance_pointer(f, w, 1);
+    ret = true;
+  }
 
   _ff_unlock(f->mutex_wr);
 
-  return true;
+  return ret;
 }
 
 /******************************************************************************/

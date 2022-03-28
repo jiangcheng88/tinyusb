@@ -15,6 +15,13 @@ CFLAGS += \
   -DXIP_BOOT_HEADER_ENABLE=1 \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
+ifdef BOARD_DEVICE_RHPORT_NUM
+CFLAGS += -DBOARD_DEVICE_RHPORT_NUM=$(BOARD_DEVICE_RHPORT_NUM)
+endif
+ifdef BOARD_HOST_RHPORT_NUM
+CFLAGS += -DBOARD_HOST_RHPORT_NUM=$(BOARD_HOST_RHPORT_NUM)
+endif
+
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
 
@@ -28,7 +35,9 @@ LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 
 SRC_C += \
-	src/portable/nxp/transdimension/dcd_transdimension.c \
+	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
+	src/portable/chipidea/ci_hs/hcd_ci_hs.c \
+	src/portable/ehci/ehci.c \
 	$(MCU_DIR)/system_$(MCU_VARIANT).c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
 	$(MCU_DIR)/project_template/clock_config.c \

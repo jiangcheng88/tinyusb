@@ -45,14 +45,9 @@
 #endif
 
 // RHPort max operational speed can defined by board.mk
-// Default to Highspeed for MCU with internal HighSpeed PHY (can be port specific), otherwise FullSpeed
+// Default to max (auto) speed for MCU with internal HighSpeed PHY
 #ifndef BOARD_DEVICE_RHPORT_SPEED
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || \
-       CFG_TUSB_MCU == OPT_MCU_NUC505  || CFG_TUSB_MCU == OPT_MCU_CXD56)
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_HIGH_SPEED
-  #else
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_FULL_SPEED
-  #endif
+  #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
 // Device mode with rhport and speed defined by board.mk
@@ -95,12 +90,11 @@
 #endif
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC               0
-#define CFG_TUD_MSC               0
-#define CFG_TUD_HID               0
-#define CFG_TUD_MIDI              0
-#define CFG_TUD_VENDOR            0
-#define CFG_TUD_NET               1
+
+// Network class has 2 drivers: ECM/RNDIS and NCM.
+// Only one of the drivers can be enabled
+#define CFG_TUD_ECM_RNDIS     1
+#define CFG_TUD_NCM           (1-CFG_TUD_ECM_RNDIS)
 
 #ifdef __cplusplus
  }

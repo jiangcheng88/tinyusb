@@ -36,6 +36,7 @@ void OTG_FS_IRQHandler(void)
   tud_int_handler(0);
 }
 
+<<<<<<< HEAD
 #define MIC_SAMPLE_FREQUENCY 48000
 #define MIC_SAMPLES_PER_MS (MIC_SAMPLE_FREQUENCY/1000)  // == 48
 #define MIC_NUM_CHANNELS    1
@@ -241,6 +242,13 @@ void HAL_I2S_MspDeInit(I2S_HandleTypeDef* hi2s)
 
 }
 #endif 
+=======
+void OTG_HS_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
+
+>>>>>>> edd8eb3279c2440e9d4590312f2104e58beafe12
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -255,6 +263,9 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  SysTick->CTRL &= ~1U;
+
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -346,6 +357,8 @@ void board_init(void)
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
+//  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+
   board_vbus_sense_init();
 
 
@@ -385,7 +398,7 @@ int board_uart_read(uint8_t* buf, int len)
 int board_uart_write(void const * buf, int len)
 {
 #ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
   return len;
 #else
   (void) buf; (void) len; (void) UartHandle;
