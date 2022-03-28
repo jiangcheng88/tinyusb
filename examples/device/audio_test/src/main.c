@@ -38,9 +38,16 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
+
+extern volatile uint8_t   can_send1 ;
+extern uint8_t   can_send2 ; 
+
+
+//extern uint16_t  usb_pcm1[MIC_SAMPLES_PER_PACKET * 2];
 
 #ifndef AUDIO_SAMPLE_RATE
 #define AUDIO_SAMPLE_RATE   48000
@@ -86,7 +93,7 @@ int main(void)
   tusb_init();
 
    
-  TU_LOG2("USBD init");
+  TU_LOG2("Welcom");
 
   // // Init values
   sampFreq = AUDIO_SAMPLE_RATE;
@@ -99,10 +106,10 @@ int main(void)
 
   while (1)
   {
+    // TU_LOG2("1can_send1 = %d\n",can_send1);
      tud_task(); // tinyusb device task
      led_blinking_task();
-     audio_task();
-   // TU_LOG2("USBD init");
+     
   }
 
 
@@ -148,15 +155,16 @@ void audio_task(void)
 {
   // Yet to be filled - e.g. put meas data into TX FIFOs etc.
   asm("nop");
-  
-  // if(RxHalfComplete_Flag==1){
-  //   RxHalfComplete_Flag = 0 ;
-  //   half_function();
-  // }
-  // if(RxComplete_Flag == 1){
-  //   RxComplete_Flag = 0 ; 
-  //   comp_function();
-  // }
+  if(RxHalfComplete_Flag==1){
+      RxHalfComplete_Flag = 0 ;
+      half_function();
+     // TU_LOG2("can_send1 = %d",can_send1);
+    }
+  if(RxComplete_Flag == 1){
+     RxComplete_Flag = 0 ; 
+    comp_function();
+   //TU_LOG2("0");
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -412,9 +420,15 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) itf;
   (void) ep_in;
   (void) cur_alt_setting;
-
-  tud_audio_write ((uint8_t *)test_buffer_audio, CFG_TUD_AUDIO_EP_SZ_IN);
-
+  //tud_audio_write ((uint8_t *)test_buffer_audio,CFG_TUD_AUDIO_EP_SZ_IN);
+ // TU_LOG2("can_send1 = %d",can_send1);
+  if (can_send1 == 1){
+   //  TU_LOG2("send_pcm");
+     send_pcm();
+  }
+  if(can_send2 == 1){
+    send_pcm1();
+  }
   return true;
 }
 
@@ -426,11 +440,11 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) ep_in;
   (void) cur_alt_setting;
 
-  for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_EP_SZ_IN/2; cnt++)
-  {
-    test_buffer_audio[cnt] = startVal++;
-  }
-
+  // for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_EP_SZ_IN/2; cnt++)
+  // {
+  //   test_buffer_audio[cnt] = startVal++;
+  // }
+  audio_task();
   return true;
 }
 

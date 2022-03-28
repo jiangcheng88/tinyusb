@@ -133,11 +133,17 @@ static inline int board_uart_putchar(uint8_t c)
   return board_uart_write(&c, 1);
 }
 
+extern volatile uint8_t   can_send1 ;
+extern uint8_t   can_send2 ;
 
 extern int RxHalfComplete_Flag;
 extern int RxComplete_Flag;
 void comp_function(void);
 void half_function(void);
+
+void send_pcm(void);
+void send_pcm1(void);
+
 #ifdef __cplusplus
  }
 #endif

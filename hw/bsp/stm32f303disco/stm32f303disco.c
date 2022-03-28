@@ -188,7 +188,7 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
   {
     while(1){
 #if CFG_TUSB_DEBUG >= 2
-    TU_LOG2("HAL_DMA_Init " );
+    TU_LOG2("HAL_DMA_Init ");
 #endif
     }
   }

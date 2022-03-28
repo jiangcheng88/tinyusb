@@ -32,8 +32,8 @@
 #endif
 
 // LED
-#define LED_PORT              GPIOE
-#define LED_PIN               GPIO_PIN_15
+#define LED_PORT              GPIOD
+#define LED_PIN               GPIO_PIN_12
 #define LED_STATE_ON          1
 
 // Button
@@ -43,11 +43,11 @@
 
 // Enable PA2 as the debug log UART
 // It is not routed to the ST/Link on the Discovery board.
-#define UART_DEV              USART6
-#define UART_GPIO_PORT        GPIOC
-#define UART_GPIO_AF          GPIO_AF8_USART6
-#define UART_TX_PIN           GPIO_PIN_6
-#define UART_RX_PIN           GPIO_PIN_7
+#define UART_DEV              USART2
+#define UART_GPIO_PORT        GPIOA
+#define UART_GPIO_AF          GPIO_AF7_USART2
+#define UART_TX_PIN           GPIO_PIN_2
+#define UART_RX_PIN           GPIO_PIN_3
 
 #define CFG_BOARD_UART_BAUDRATE  115200
 
@@ -58,7 +58,7 @@ static inline void board_clock_init(void)
 {
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
-
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
   /* Enable Power Control clock */
   __HAL_RCC_PWR_CLK_ENABLE();
 
@@ -87,20 +87,45 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2S;
+  PeriphClkInitStruct.PLLI2S.PLLI2SN = 192;
+  PeriphClkInitStruct.PLLI2S.PLLI2SR = 2;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  {
+   
+  }
   // Enable clocks for LED, Button, Uart
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_USART6_CLK_ENABLE();
+  __HAL_RCC_USART2_CLK_ENABLE();
 }
 
 static inline void board_vbus_sense_init(void)
 {
-  // Enable VBUS sense (B device) via pin PA9
+  //Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
+  // ---- 
+  // USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
+  // USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
+  // USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
 }
+
+
+
+
+
+// #define buffer_size  48
+// extern int RxHalfComplete_Flag;
+// extern int RxComplete_Flag;
+
+// void comp_function(void);
+// void half_function(void);
+
+
 
 #ifdef __cplusplus
  }

@@ -9,10 +9,11 @@
             "type": "cortex-debug",
             "request": "launch",
             //"executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f303disco/stm32f303disco-audio_test.elf",
-            "executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/feather_stm32f405/feather_stm32f405-audio_test.elf",
+            //"executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/feather_stm32f405/feather_stm32f405-audio_test.elf",
+            "executable": "/mnt/stm32/tinyusb/examples/device/audio_test/_build/stm32f407disco/stm32f407disco-audio_test.elf",
             //"stopAtEntry": false,
             //"svdFile": "/mnt/stm32/tinyusb/examples/device/audio_test/stm32f303.svd",
-            "svdFile": "/mnt/stm32/tinyusb/examples/device/audio_test/stm32f405.svd"
+            "svdFile": "/mnt/stm32/tinyusb/examples/device/audio_test/stm32f407.svd",
             "cwd": "${workspaceRoot}",
             "servertype": "openocd",
             "runToMain": true,
